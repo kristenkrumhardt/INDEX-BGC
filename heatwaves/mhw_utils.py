@@ -14,7 +14,7 @@ import scipy.ndimage as ndimage
 from datetime import date
 
 
-def detect(t, temp, climatologyPeriod=[None,None], pctile=90, windowHalfWidth=5, smoothPercentile=True, smoothPercentileWidth=31, minDuration=5, joinAcrossGaps=True, maxGap=2, maxPadLength=False, coldSpells=False, alternateClimatology=False, Ly=False):
+def detect(t_read, temp_read, climatologyPeriod=[None,None], pctile=90, windowHalfWidth=5, smoothPercentile=True, smoothPercentileWidth=31, minDuration=5, joinAcrossGaps=True, maxGap=2, maxPadLength=False, coldSpells=False, alternateClimatology=False, Ly=False):
     '''
 
     Applies the Hobday et al. (2016) marine heat wave definition to an input time
@@ -142,6 +142,12 @@ def detect(t, temp, climatologyPeriod=[None,None], pctile=90, windowHalfWidth=5,
 
     '''
 
+    t = t_read.copy()
+    temp = temp_read.copy()
+    # t.load()
+    # temp.load()
+    # print(t, '\n\n', temp)
+
     #
     # Initialize MHW output variable
     #
@@ -182,7 +188,7 @@ def detect(t, temp, climatologyPeriod=[None,None], pctile=90, windowHalfWidth=5,
     #
 
     # Generate vectors for year, month, day-of-month, and day-of-year
-    T = len(t)
+    T = int(len(t))
     year = np.zeros((T))
     month = np.zeros((T))
     day = np.zeros((T))
@@ -240,7 +246,7 @@ def detect(t, temp, climatologyPeriod=[None,None], pctile=90, windowHalfWidth=5,
         monthClim = month.copy()
         dayClim = day.copy()
         doyClim = doy.copy()
-
+    
     # Flip temp time series if detecting cold spells
     if coldSpells:
         temp = -1.*temp
@@ -263,6 +269,7 @@ def detect(t, temp, climatologyPeriod=[None,None], pctile=90, windowHalfWidth=5,
     clim['thresh'] = np.nan*np.zeros(TClim)
     clim['seas'] = np.nan*np.zeros(TClim)
     # Loop over all day-of-year values, and calculate threshold and seasonal climatology across years
+    # print(lenClimYear)
     for d in range(1,lenClimYear+1):
         # Special case for Feb 29
         if d == feb29:
@@ -279,6 +286,7 @@ def detect(t, temp, climatologyPeriod=[None,None], pctile=90, windowHalfWidth=5,
         tt = tt[tt<TClim] # Reject indices "after" the last element
         thresh_climYear[d-1] = np.nanpercentile(tempClim[tt.astype(int)], pctile)
         seas_climYear[d-1] = np.nanmean(tempClim[tt.astype(int)])
+        # print('thresh_climYear', d, thresh_climYear)
     # Special case for Feb 29
     thresh_climYear[feb29-1] = 0.5*thresh_climYear[feb29-2] + 0.5*thresh_climYear[feb29]
     seas_climYear[feb29-1] = 0.5*seas_climYear[feb29-2] + 0.5*seas_climYear[feb29]
@@ -297,6 +305,7 @@ def detect(t, temp, climatologyPeriod=[None,None], pctile=90, windowHalfWidth=5,
             seas_climYear = runavg(seas_climYear, smoothPercentileWidth)
 
     # Generate threshold for full time series
+    # print(thresh_climYear, doy)
     clim['thresh'] = thresh_climYear[doy.astype(int)-1]
     clim['seas'] = seas_climYear[doy.astype(int)-1]
 
@@ -309,7 +318,7 @@ def detect(t, temp, climatologyPeriod=[None,None], pctile=90, windowHalfWidth=5,
     #
     # Find MHWs as exceedances above the threshold
     #
-
+    # print(clim['thresh'])
     # Time series of "True" when threshold is exceeded, "False" otherwise
     exceed_bool = temp - clim['thresh']
     exceed_bool[exceed_bool<=0] = False
@@ -318,7 +327,7 @@ def detect(t, temp, climatologyPeriod=[None,None], pctile=90, windowHalfWidth=5,
     exceed_bool[np.isnan(exceed_bool)] = False
     # Find contiguous regions of exceed_bool = True
     events, n_events = ndimage.label(exceed_bool)
-
+    # print(events, n_events)
     # Find all MHW events of duration >= minDuration
     for ev in range(1,n_events+1):
         event_duration = (events == ev).sum()
